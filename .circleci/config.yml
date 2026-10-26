@@ -35,7 +35,7 @@ jobs:
           command: |
             source "$HOME/.cargo/env"
             archive=/tmp/cargo-deny-0.20.2.tar.gz
-            curl --proto '=https' --tlsv1.2 -fL --retry 3               https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz               -o "$archive"
+            curl --proto '=https' --tlsv1.2 -fL --retry 3 https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz -o "$archive"
             mkdir -p /tmp/cargo-deny-unpack
             tar -xzf "$archive" -C /tmp/cargo-deny-unpack
             find /tmp/cargo-deny-unpack -type f -name cargo-deny -exec install -m 0755 {} "$HOME/.cargo/bin/cargo-deny" \;
@@ -52,13 +52,6 @@ jobs:
             source "$HOME/.cargo/env"
             cargo build --release -p obscura-cli --bins --features render
       - run:
-          name: Rust test suite using nextest
-          no_output_timeout: 30m
-          command: |
-            source "$HOME/.cargo/env"
-            cargo nextest run --release --features render --no-fail-fast
-            cargo test --release --doc --workspace
-      - run:
           name: Binary smoke test and dynamic-library check
           command: |
             source "$HOME/.cargo/env"
@@ -68,14 +61,22 @@ jobs:
               echo "A required shared library is missing."
               exit 1
             fi
+            file target/release/obscura
+      - store_artifacts:
+          path: target/release/obscura
+          destination: obscura-release-binary
       - save_cache:
           key: cargo-registry-v1-{{ checksum "Cargo.lock" }}
           paths:
             - ~/.cargo/registry
             - ~/.cargo/git
-      - store_artifacts:
-          path: target/release/obscura
-          destination: obscura-release-binary
+      - run:
+          name: Rust test suite using nextest
+          no_output_timeout: 30m
+          command: |
+            source "$HOME/.cargo/env"
+            cargo nextest run --release --features render --no-fail-fast
+            cargo test --release --doc --workspace
 
 workflows:
   review:
