@@ -14,6 +14,7 @@ jobs:
           command: |
             dnf install -y gcc gcc-c++ make cmake clang clang-devel llvm-devel pkgconf-pkg-config ca-certificates git gzip tar
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            mkdir -p "$HOME/.cargo/bin"
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
             source "$HOME/.cargo/env"
             rustc --version
@@ -24,19 +25,21 @@ jobs:
             - cargo-registry-v1-{{ checksum "Cargo.lock" }}
             - cargo-registry-v1-
       - run:
-          name: Install cargo-nextest
+          name: Install prebuilt cargo-nextest
           command: |
             source "$HOME/.cargo/env"
-            if ! command -v cargo-nextest >/dev/null 2>&1; then
-              cargo install cargo-nextest --locked
-            fi
+            curl --proto '=https' --tlsv1.2 -LsSf https://get.nexte.st/0.9/linux | tar zxf - -C "$HOME/.cargo/bin"
+            cargo-nextest --version
       - run:
-          name: Install cargo-deny
+          name: Install prebuilt cargo-deny
           command: |
             source "$HOME/.cargo/env"
-            if ! command -v cargo-deny >/dev/null 2>&1; then
-              cargo install cargo-deny --locked
-            fi
+            archive=/tmp/cargo-deny-0.20.2.tar.gz
+            curl --proto '=https' --tlsv1.2 -fL --retry 3               https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz               -o "$archive"
+            mkdir -p /tmp/cargo-deny-unpack
+            tar -xzf "$archive" -C /tmp/cargo-deny-unpack
+            find /tmp/cargo-deny-unpack -type f -name cargo-deny -exec install -m 0755 {} "$HOME/.cargo/bin/cargo-deny" \;
+            cargo-deny --version
       - run:
           name: Dependency security, licensing, and source policy
           command: |
@@ -54,6 +57,7 @@ jobs:
           command: |
             source "$HOME/.cargo/env"
             cargo nextest run --release --features render --no-fail-fast
+            cargo test --release --doc --workspace
       - run:
           name: Binary smoke test and dynamic-library check
           command: |
