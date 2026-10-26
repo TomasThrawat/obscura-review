@@ -12,7 +12,7 @@ jobs:
       - run:
           name: Install native dependencies and Rust toolchain
           command: |
-            dnf install -y gcc gcc-c++ make cmake clang libclang-devel llvm-devel pkgconf-pkg-config curl ca-certificates git gzip tar
+            dnf install -y gcc gcc-c++ make cmake clang clang-devel llvm-devel pkgconf-pkg-config curl ca-certificates git gzip tar
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
             source "$HOME/.cargo/env"
