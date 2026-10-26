@@ -1,0 +1,59 @@
+version: 2.1
+
+jobs:
+  rust-review:
+    docker:
+      - image: cimg/rust:1.99.1
+    environment:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-registry-v1-{{ checksum "Cargo.lock" }}
+            - cargo-registry-v1-
+      - run:
+          name: Install native build dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends build-essential cmake clang libclang-dev llvm-dev pkg-config
+      - run:
+          name: Install cargo-nextest
+          command: |
+            if ! command -v cargo-nextest >/dev/null 2>&1; then
+              cargo install cargo-nextest --locked
+            fi
+      - run:
+          name: Install cargo-deny
+          command: |
+            if ! command -v cargo-deny >/dev/null 2>&1; then
+              cargo install cargo-deny --locked
+            fi
+      - run:
+          name: Dependency security, licensing, and source policy
+          command: cargo deny check
+      - run:
+          name: Release build with renderer
+          no_output_timeout: 30m
+          command: cargo build --release -p obscura-cli --bins --features render
+      - run:
+          name: Rust test suite using nextest
+          no_output_timeout: 30m
+          command: cargo nextest run --release --features render --no-fail-fast
+      - run:
+          name: Binary smoke test
+          command: ./target/release/obscura --version
+      - save_cache:
+          key: cargo-registry-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+      - store_artifacts:
+          path: target/release/obscura
+          destination: obscura-release-binary
+
+workflows:
+  review:
+    jobs:
+      - rust-review
