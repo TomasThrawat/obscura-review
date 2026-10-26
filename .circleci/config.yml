@@ -3,47 +3,67 @@ version: 2.1
 jobs:
   rust-review:
     docker:
-      - image: cimg/rust:1.99.1
+      - image: amazonlinux:2023
     environment:
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "2"
     steps:
       - checkout
+      - run:
+          name: Install native dependencies and Rust toolchain
+          command: |
+            dnf install -y gcc gcc-c++ make cmake clang libclang-devel llvm-devel pkgconf-pkg-config curl ca-certificates git gzip tar
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            source "$HOME/.cargo/env"
+            rustc --version
+            cargo --version
+            getconf GNU_LIBC_VERSION
       - restore_cache:
           keys:
             - cargo-registry-v1-{{ checksum "Cargo.lock" }}
             - cargo-registry-v1-
       - run:
-          name: Install native build dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends build-essential cmake clang libclang-dev llvm-dev pkg-config
-      - run:
           name: Install cargo-nextest
           command: |
+            source "$HOME/.cargo/env"
             if ! command -v cargo-nextest >/dev/null 2>&1; then
               cargo install cargo-nextest --locked
             fi
       - run:
           name: Install cargo-deny
           command: |
+            source "$HOME/.cargo/env"
             if ! command -v cargo-deny >/dev/null 2>&1; then
               cargo install cargo-deny --locked
             fi
       - run:
           name: Dependency security, licensing, and source policy
-          command: cargo deny check
+          command: |
+            source "$HOME/.cargo/env"
+            cargo deny check
       - run:
           name: Release build with renderer
           no_output_timeout: 30m
-          command: cargo build --release -p obscura-cli --bins --features render
+          command: |
+            source "$HOME/.cargo/env"
+            cargo build --release -p obscura-cli --bins --features render
       - run:
           name: Rust test suite using nextest
           no_output_timeout: 30m
-          command: cargo nextest run --release --features render --no-fail-fast
+          command: |
+            source "$HOME/.cargo/env"
+            cargo nextest run --release --features render --no-fail-fast
       - run:
-          name: Binary smoke test
-          command: ./target/release/obscura --version
+          name: Binary smoke test and dynamic-library check
+          command: |
+            source "$HOME/.cargo/env"
+            ./target/release/obscura --version
+            ldd target/release/obscura
+            if ldd target/release/obscura | grep -q "not found"; then
+              echo "A required shared library is missing."
+              exit 1
+            fi
       - save_cache:
           key: cargo-registry-v1-{{ checksum "Cargo.lock" }}
           paths:
